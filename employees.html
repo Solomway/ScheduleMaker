@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <div class="sidebar">
+            <h1>Edit Employees</h1>
+            <button onclick="window.location.href='index.html'">Home</button>
+            <br>
+            <br>
+            <button onclick="window.location.href='shifts.html'">Edit Shifts</button>
+            <br>
+            <br>
+            <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
+            <br>
+        </div>
+        <hr>
+
+
+        <div class="main-content">
+            <h3>Employees</h3>
+            <div id="EmpviewOutput"></div>
+            <hr>
+
+            <div class="auth-row">
+                <div class="auth-box">
+                    <h3>Add Employees</h3>
+                    <form>
+                        <div>
+                            <label for="emp_name">Name of New Employee:</label><br>
+                            <input type="text" id="emp_name" name="emp_name" placeholder="Employee Name">
+                        </div>
+                        <div>
+                            <label for="desired_hours">Max Hours Per Week:</label><br>
+                            <input type="number" id="desired_hours" name="desired_hours" placeholder="Hours">
+                        </div>
+                        <div id="shiftCheckboxes"></div>
+                        <input type="button" value="Submit" onclick="add_emp()">
+                    </form>
+                </div>
+
+                <div class="auth-box">
+                    <h3>Remove Employees</h3>
+                    <form>
+                        <div>
+                            <label for="emp_id">Employee ID:</label><br>
+                            <input type="number" id="emp_id" name="emp_id" placeholder="Employee ID">
+                        </div>
+                        <input type="button" value="Submit" onclick="remove_emp()">
+                    </form>
+                </div>
+            </div>
+
+            <div class="auth-row">
+                <div class="auth-box">
+                    <h3>Request Vacation / Day Off</h3>
+                    <form id="vacationForm">
+                        <div>
+                            <label>Employee ID:</label><br>
+                            <input type="number" id="vac_emp_id" required>
+                        </div>
+                        <div>
+                            <label>Start Date:</label><br>
+                            <input type="date" id="start_date" required>
+                        </div>
+                        <div>
+                            <label>End Date:</label><br>
+                            <input type="date" id="end_date" required>
+                        </div>
+                        <input type="button" value="Submit Vacation" onclick="submitVacation()">
+                    </form>
+                </div>
+                <div class="auth-box">
+                    <h3>Remove Employee Day Off</h3>
+                    <form>
+                        <div>
+                            <label for="emp_id_vac">Employee ID:</label><br>
+                            <input type="number" id="emp_id_vac" name="emp_id_vac" placeholder="Employee ID">
+                        </div>
+                        <div>
+                        <input type="button" value="Submit" onclick="remove_vacation()">
+                    </form>
+                    <div id="delVacationPopup" class="overlay">
+                        <div class="del-Vacation-box">
+                            <h2>Remove Vacation Dates</h2>
+                            <p>Enter the vacation ID of the time off request which will be removed</p>
+                            <hr>
+                            <div id="vacationContainer"></div>
+                            <br>
+                            <button onclick="deleteVacation()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
+                            <button onclick="location.reload()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            </div>     
+
+            <div class="auth-row">
+                <div class="auth-box">
+                    <h3>Modify Employee Availability</h3>
+                    <button onclick="openAvailabilityPopup()">Edit Availability</button>
+                    
+                    <div id="availabilityPopup" class="overlay">
+                        <div class="availability-box">
+                            <h2>Modify Employee Availability</h2>
+                            <p>Check the box if the employee can work the shift.</p>
+                            <hr>
+                            <div id="availabilityContainer"></div>
+                            <br>
+                            <button onclick="saveAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
+                            <button onclick="location.reload()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="script.js"></script>
+    </body>
+</html>
+

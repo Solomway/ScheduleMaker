@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <div class="sidebar">
+            <h1>Edit Shifts</h1>
+            <button onclick="window.location.href='index.html'">Home</button>
+            <br>
+            <br>
+            <button onclick="window.location.href='employees.html'">Edit Employees</button>
+            <br>
+            <br>
+            <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
+            <br>
+        </div>
+        <hr>
+        <hr> 
+        <div class="main-content">
+            <h3>Shifts</h3>
+            <div id="ShiftviewOutput"></div>
+            <br>
+            <hr>
+            <div class="auth-row">
+                <div class="auth-box">
+                    <h3>Add Shifts</h3>
+                    <form>
+                    <label for="shift_name">Name of New Shift:</label><br>
+                    <input type="text" id="shift_name" name="shift_name" placeholder="Shift Name"><br>
+                    <br>
+                    <label for="start_time">Starting Time of the New Shift:</label><br>
+                    <input type="time" id="start_time" name="start_time"><br>
+                    <br>
+                    <label for="end_time">Ending Time of the New Shift:</label><br>
+                    <input type="time" id="end_time" name="end_time"><br>
+                    <br>
+                    <label for="min_emp">Minimum Employees Needed for the New Shift:</label><br>
+                    <input type="number" id="min_emp" name="min_emp"><br>
+                    <br>
+                    <label for="max_emp">Maximum Employees Needed for the New Shift:</label><br>
+                    <input type="number" id="max_emp" name="max_emp"><br>
+
+                    <br><input type="button" value="Submit" onclick="add_shift()">
+                    </form>
+                </div>
+            </div>
+            <br>
+                <div class="auth-box">
+                    <h3>Remove Shifts</h3>
+                    <form>
+                        <label for="shift_id">ID of Shift to Remove:</label><br>
+                        <input type="number" id="shift_id" name="shift_id" placeholder="Shift ID"><br>
+                        <br><input type="button" value="Submit" onclick="remove_shift()">
+                    </form>
+                </div>
+            
+
+            <div class="auth-row">
+                <div class="auth-box">
+                    <h3>Modify Shift Availability</h3>
+                    <button onclick="openAvailabilityPopup()">Edit</button>
+                    <div id="availabilityPopup">
+                        <div class="availability-box">
+                            <h2>Modify Shift Availability</h2>
+                            <p>Check the box if the employee can work the shift.</p>
+                            <hr>
+                            <div id="availabilityContainer"></div>
+                            <br>
+                            <button onclick="saveAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
+                            <button onclick="location.reload()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="statusPopup">
+                <div class="popup-box">
+                    <h2 id="popupTitle">Shift Added!</h2>
+                    <p id="popupMessage"></p>
+                    <p>Would you like to update employee availability individually?</p>
+                    <div class="popup-btns">
+                        <button class="btn-yes" onclick="openAvailabilityPopup()">Yes</button>
+                        <button class="btn-no" onclick="setAllAvailability()">No</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="availabilityPopup">
+                <div class="availability-box">
+                    <h2>Modify Employee Availability</h2>
+                    <p>Check the box if the employee can work the shift.</p>
+                    <hr>
+                    <div id="availabilityContainer"></div>
+                    <br>
+                    <button onclick="saveAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
+                    <button onclick="location.reload()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
+                </div>
+            </div>
+        </div>
+    <script src="script.js"></script>
+    </body>
+</html>

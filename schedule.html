@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <div class="sidebar">
+            <h1>Create Schedule</h1>
+            <button onclick="window.location.href='index.html'">Home</button>
+            <br>
+            <br>
+            <button onclick="window.location.href='employees.html'">Edit Employees</button>
+            <br>
+            <br>
+            <button onclick="window.location.href='shifts.html'">Edit Shifts</button>
+            <br>
+        </div>
+        <hr>
+        <div class="main-content">
+            <div>
+                <h3>
+                    Employees Table
+                </h3>
+                <div id="EmpviewOutput"></div>
+                <hr>
+            </div>
+
+            <div>
+                <h3>
+                    Shifts Table
+                </h3>
+            <div id="ShiftviewOutput"></div>
+            <hr>
+            </div>
+
+            <div>
+                <h3>
+                    Generate Schedule
+                </h3>
+                <input type="date" id="startDate" placeholder="Start Date" size=10000px>
+                <input type="number" id="num_days" placeholder="Number Of Days">
+                <button onclick="generateSchedule()">Generate Schedule</button>
+            </div>
+            <div id="scheduleOutput"> </div>
+        </div>
+    <script src="script.js"></script>
+    </body>
+</html>
