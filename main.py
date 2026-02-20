@@ -140,7 +140,10 @@ class EmployeeInfo(BaseModel):
 def add_emp(emp: EmployeeInfo):
     global employees
     user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
+    emp_ids = [emp.get('id') for emp in employees if emp.get('owner_id') == current_user]
     new_id = len(user_emps) + 1
+    while new_id in emp_ids:
+        new_id = new_id + 1
     new_emp = {
         "owner_id": current_user,
         "id": new_id,
@@ -192,6 +195,7 @@ def add_shift(param: ShiftInfo):
         new_id = 1
     else:
         new_id = max(int(shift['shift_id']) for shift in user_shifts) + 1
+        
 
     new_shift = {
         "owner_id": current_user,

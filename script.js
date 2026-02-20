@@ -38,12 +38,16 @@ function renderScheduleTable(scheduleData) {
             <tbody>`;
 
     for (const [date, shifts] of Object.entries(scheduleData)) {
+        const dateObj = new Date(date + 'T00:00:00');
+        const formattedDate = dateObj.toLocaleDateString('en-GB').split('/').join('-');
+        const dayName = dateObj.toLocaleDateString('en-CA', { weekday: 'long' });
+
         for (const [shiftName, emps] of Object.entries(shifts)) {
             const empList = emps.length > 0 ? emps.join(", ") : "<em>No one assigned</em>";
             
             html += `
                 <tr>
-                    <td>${date}</td>
+                    <td>${formattedDate} - <strong>${dayName}</strong></td>
                     <td><strong>${shiftName}</strong></td>
                     <td>${empList}</td>
                 </tr>`;

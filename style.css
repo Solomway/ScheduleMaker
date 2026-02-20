@@ -6,14 +6,14 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--light-bg);
+    background-color: rgb(235, 235, 235);
     margin: 0;
     display: flex;
 }
 
 /* Sidebar Navigation Area */
 .sidebar {
-    width: 250px;
+    width: 200px;
     background: var(--dark-grey);
     height: 100vh;
     color: white;
@@ -21,25 +21,43 @@ body {
     position: fixed;
 }
 
+/* Edits buttons inside the sidebar */
+.sidebar button {
+    width: 100%;           /* Makes them all the same width */
+    padding: 12px 15px;    /* Uniform spacing inside the button */
+    display: block;        
+    text-align: center;    /* Keeps the text aligned */
+    margin-bottom: 12px;
+    cursor: pointer;
+    background-color: var(--tan); 
+    color: white;
+    font-size: 1rem;
+    transition: background 0.3s ease;
+}
+
+.sidebar button:hover {
+    background-color: #7a7741; 
+}
+
 /* Main Content Area */
 .main-content {
-    margin-left: 260px;
+    margin-left: 245px;
     padding: 40px;
     width: 100%;
 }
 
-/* If the screen is 800px wide or smaller (Tablets/Phones) */
+/* If the screen is 800px wide or smaller (Phones) */
 @media (max-width: 800px) {
     body {
         flex-direction: column; /* Stack sidebar on top of content */
-        margin-top: 0;         /* Remove the big gap at the top */
+        margin-top: 0;          /* Remove the big gap at the top */
     }
 
     .sidebar {
         position: relative;    
         width: 100%;           
-        height: auto;          /* Only as tall as the buttons inside */
-        top: 0;                /* Remove the 75px offset */
+        height: auto;          
+        top: 0;                
         padding: 10px;
     }
 
@@ -95,8 +113,8 @@ button {
     background-color: var(--tan);
     color: white;
     border: none;
-    padding: 12px 24px;
-    border-radius: 4px;
+    padding: 15px 30px;
+    border-radius: 5px;
     font-weight: 600;
     cursor: pointer;
     transition: background 0.3s;
@@ -190,7 +208,7 @@ button:hover {
 }
 
 
-
+/* SETS ALL <p>'s IN HTML TO THE SAME FONT */
 p {
     font-family: monospace;
 }

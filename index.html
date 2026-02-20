@@ -7,15 +7,11 @@
         <div class='sidebar'>
 
         <h1>
-            Schedule Maker 0.1.1
+            Schedule Maker 0.1.2
         </h1>
         
             <button onclick="window.location.href='employees.html'">Edit Employees</button>
-            <br>
-            <br>
             <button onclick="window.location.href='shifts.html'">Edit Shifts</button>
-            <br>
-            <br>
             <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
             <br>
         </div>
@@ -47,10 +43,10 @@
                             <label for="pword">Password:</label><br>
                             <input type="password" id="pword" name="pword">
                         </div>
-                        <input type="button" value="Sign In" onclick="signIn()">
+                        <input type="button" value="Sign In" onclick="signIn()" style="cursor: pointer;">
                     </form>
                     <br><br><br><br><br>
-                    <p style="color:rgb(15, 88, 162);"  onclick="signInGuest()">Continue as guest</p>
+                    <p style="color:rgb(15, 88, 162); cursor: pointer;" onclick="signInGuest()">Continue as guest</p>
                 </div> 
 
                 <div id="createAccount" class="auth-box">
@@ -72,7 +68,7 @@
                             <label for="pwordCheck">Repeat Password:</label><br>
                             <input type="password" id="pwordCheck" name="pwordCheck">
                         </div>
-                        <input type="button" value="Create Account" onclick="createAccount()">
+                        <input style="cursor: pointer;" type="button" value="Create Account" onclick="createAccount()">
                     </form>
                 </div>
             </div>

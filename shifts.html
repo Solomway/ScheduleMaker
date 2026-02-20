@@ -7,11 +7,7 @@
         <div class="sidebar">
             <h1>Edit Shifts</h1>
             <button onclick="window.location.href='index.html'">Home</button>
-            <br>
-            <br>
             <button onclick="window.location.href='employees.html'">Edit Employees</button>
-            <br>
-            <br>
             <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
             <br>
         </div>
@@ -44,8 +40,6 @@
                     <br><input type="button" value="Submit" onclick="add_shift()">
                     </form>
                 </div>
-            </div>
-            <br>
                 <div class="auth-box">
                     <h3>Remove Shifts</h3>
                     <form>
@@ -53,11 +47,7 @@
                         <input type="number" id="shift_id" name="shift_id" placeholder="Shift ID"><br>
                         <br><input type="button" value="Submit" onclick="remove_shift()">
                     </form>
-                </div>
-            
-
-            <div class="auth-row">
-                <div class="auth-box">
+                    <br><br><br>
                     <h3>Modify Shift Availability</h3>
                     <button onclick="openAvailabilityPopup()">Edit</button>
                     <div id="availabilityPopup">
@@ -73,6 +63,7 @@
                     </div>
                 </div>
             </div>
+            <br>
 
             <div id="statusPopup">
                 <div class="popup-box">

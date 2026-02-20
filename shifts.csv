@@ -2,3 +2,4 @@ owner_id,shift_id,shift_name,start,end,min_employees,max_employees
 Admin,1,Morning,07:30,15:30,1,10
 Admin,2,Afternoon,12:30,20:30,1,1
 0,1,Test,00:00,12:00,1,1
+0,2,Night,12:05,00:00,1,1
