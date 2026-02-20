@@ -46,12 +46,14 @@ class ScheduleParams(BaseModel):
 
 @app.post("/generate")
 def generate(params: ScheduleParams):
+    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
+    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
     start_date_str = params.start_date
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
 
     num_Days = params.num_days
     
-    result = dfs_schedule_helper(start_date, num_Days)
+    result = dfs_schedule_helper(start_date, num_Days, user_emps, user_shifts)
     
     if result:
         return {"status": "success", "schedule": result}
@@ -137,7 +139,8 @@ class EmployeeInfo(BaseModel):
 @app.post("/add_employee")
 def add_emp(emp: EmployeeInfo):
     global employees
-    new_id = len(employees) + 1
+    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
+    new_id = len(user_emps) + 1
     new_emp = {
         "owner_id": current_user,
         "id": new_id,
@@ -160,8 +163,9 @@ class EmpID(BaseModel):
 @app.post("/remove_employee")
 def remove_emp(param: EmpID):
     global employees
+    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
     for employee in employees:
-        if employee['id'] == param.emp_id:
+        if employee['id'] == param.emp_id and employee in user_emps:
             employees.remove(employee)
             name = employee['name']
             csv_code.save_employees_csv(employees)
@@ -182,10 +186,12 @@ class ShiftInfo(BaseModel):
 def add_shift(param: ShiftInfo):
     global shifts
     global employees
-    if not shifts:
+    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
+
+    if not user_shifts:
         new_id = 1
     else:
-        new_id = max(int(s['shift_id']) for s in shifts) + 1
+        new_id = max(int(shift['shift_id']) for shift in user_shifts) + 1
 
     new_shift = {
         "owner_id": current_user,
@@ -213,10 +219,12 @@ class ShiftID(BaseModel):
 @app.post("/remove_shift")
 def remove_shift(param: ShiftID):
     global shifts
-    for shift in shifts:
-        if int(shift['shift_id']) == param.shift_id:
+    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
+    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
+    for shift in user_shifts:
+        if int(shift['shift_id']) == param.shift_id and shift in user_shifts:
             sname = shift['shift_name']
-            for emp in employees:
+            for emp in user_emps:
                 if shift["shift_name"] in emp["availability"]:
                     del emp["availability"][shift["shift_name"]]
             shifts.remove(shift)
@@ -377,8 +385,9 @@ def createAccount(info: NewAccountInfo):
 """
 Sets up the logic and data structures needed for the algorithm to run the schedule.
 """
-def dfs_schedule_helper(start_date, num_days):
-    if not shifts or not employees: return None
+def dfs_schedule_helper(start_date, num_days, user_employees, user_shifts):
+    if not user_shifts or not user_employees: 
+        return None
 
     schedule = {}
     day_indices = []
@@ -389,69 +398,35 @@ def dfs_schedule_helper(start_date, num_days):
         date_str = current_date.strftime('%Y-%m-%d')
         schedule[date_str] = {}
         day_indices.append(date_str)
-        for shift in shifts:
+        for shift in user_shifts:
             schedule[date_str][shift['shift_name']] = [] 
             
     # Create employee hour tracker {emp_id: {'current_hours': 0}}
     employee_hours = {
         emp['id']: {'current_hours': 0, 'max_hours': emp['hours_per_week']}
-        for emp in employees
+        for emp in user_employees
     }
     
     print("\nStarting DFS to generate Schedule...")
     
-    DFS_success = DFS_algorithm.dfs_scheduling(schedule, employee_hours, day_indices, 0, 0, 0, num_days, employees, shifts)
+    DFS_success = DFS_algorithm.dfs_scheduling(schedule, employee_hours, day_indices, 0, 0, 0, num_days, user_employees, user_shifts)
 
     if DFS_success:
         print("DFS Minimums Met. Running Maximizer...")
-        DFS_algorithm.scheduleMaximizer(schedule, employee_hours, day_indices, 0, 0, 0, num_days, employees, shifts)
+        DFS_algorithm.scheduleMaximizer(schedule, employee_hours, day_indices, 0, 0, 0, num_days, user_employees, user_shifts)
         return schedule
     else:
         print("DFS failed to find a valid schedule.")
         return None
 
-    
-"""
-Formats the final generated schedule and saves it as a readable text file.
-"""
-def save_combined_schedules_to_file(combined_schedules, filename="schedule.txt"):
-    shifts_map = {s['name']: s for s in shifts}
-    separator = "\n" + "="*80 + "\n"
-    
-    with open(filename, "w") as f:
-        print("\n--- SCHEDULE RESULTS ---")
-        
-        for name, schedule in combined_schedules.items():
-            f.write(separator)
-            f.write(f"*** {name} ***\n")
-            f.write(separator)
-            
-            print(f"\n*** {name} ***\n")
-            
-            for date, shifts_on_date in schedule.items():
-                date_header = f"Date: {date} ({datetime.strptime(date, '%Y-%m-%d').strftime('%A')})\n"
-                f.write(date_header)
-                print(date_header.strip())
-                
-                for shift_name, employees_list in shifts_on_date.items():
-                    min_emp = shifts_map[shift_name].get('min_employees', 0)
-                    emp_str = ", ".join(employees_list)
-                    
-                    line = f"  {shift_name} (Min: {min_emp}): {emp_str or 'UNASSIGNED'}\n"
-                    f.write(line)
-                    print(line.strip())
-            
-            f.write("\n")
-            print("\n")
-            
-    print(f"Schedule data successfully saved to {filename}")
-
-
 """
 A wrapper function that calculates the algorithm's runtime and handles errors.
 """
 def generate_schedule(start_date_str: str, num_days: int):
-    if not shifts or not employees:
+    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
+    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
+    
+    if not user_shifts or not user_emps:
         return {"error": "No shifts or employees to schedule."}
 
     try:
@@ -460,7 +435,7 @@ def generate_schedule(start_date_str: str, num_days: int):
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
         
     start_time = time.time()
-    dfs_schedule = dfs_schedule_helper(start_date, num_days)
+    dfs_schedule = dfs_schedule_helper(start_date, num_days, user_emps, user_shifts)
     end_time = time.time()
     
     if dfs_schedule:
@@ -471,6 +446,9 @@ def generate_schedule(start_date_str: str, num_days: int):
         }
     return {"error": "Algorithm failed to find a schedule."}
 
+
+
+
 """
 Serves the main frontend page when the website is first loaded.
 """
@@ -478,7 +456,11 @@ Serves the main frontend page when the website is first loaded.
 async def read_index():
     return FileResponse('index.html')
 
+
+
 app.mount("/", StaticFiles(directory=".", html=True), name="static")
+
+
 
 if __name__ == "__main__":
     import uvicorn

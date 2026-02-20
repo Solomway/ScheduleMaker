@@ -1,10 +1,10 @@
 owner_id,id,name,max_hours_per_week,days_off,Afternoon,Morning,Test
 Admin,1,Alice,40,"2025-03-01, 2025-12-20 to 2025-12-26, 2025-07-01",1,1,1
-Admin,2,Bob,32,,1,1,1
-Admin,3,Cameron,40,2025-12-25,1,0,1
-Admin,4,Jerry,40,,1,1,1
-Admin,5,Tom,40,2026-01-17,0,1,1
-Admin,6,Jake,24,,1,1,1
-Admin,7,Alan,40,2026-01-21 to 2026-01-30,0,1,1
-Admin,8,Mark,30,,1,1,1
-0,9,Joe,12,,1,1,1
+Admin,2,Bob,32,,1,1,
+Admin,3,Cameron,40,2025-12-25,1,0,
+Admin,4,Jerry,40,,1,1,
+Admin,5,Tom,40,2026-01-17,0,1,
+Admin,6,Jake,24,,1,1,
+Admin,7,Alan,40,2026-01-21 to 2026-01-30,0,1,
+Admin,8,Mark,30,,1,1,
+0,1,Joe,40,,,,
