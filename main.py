@@ -649,7 +649,7 @@ Serves the main frontend page when the website is first loaded.
 """
 @app.get("/")
 async def read_index():
-    return FileResponse('index.html')
+    return FileResponse('homepage.html')
 
 
 
