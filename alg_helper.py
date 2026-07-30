@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import csv
 
 """
 Calculates the total hours of a shift based on its start and end times.
@@ -42,7 +43,7 @@ def is_scheduled_today(emp_name, date_str, schedule):
 """
 Loads a list of statutory holidays from a CSV file to be used by the scheduler.
 """
-def read_holidays(filename):
+def read_holidays(filename="statHolidays.csv"):
     holidays = []
     with open(filename, "r", newline="") as f:
         reader = csv.reader(f)
@@ -51,4 +52,4 @@ def read_holidays(filename):
             holidays.append([date, name])
     return holidays
 
-holidays = read_holidays("statHolidays.csv")
+holidays = read_holidays()
