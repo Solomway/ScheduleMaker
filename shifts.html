@@ -6,13 +6,15 @@
     <body>
         <div class="sidebar">
             <h1>Edit Shifts</h1>
-            <button onclick="window.location.href='index.html'">Home</button>
+            <br><br>
+            <button onclick="window.location.href='homepage.html'">Home</button>
             <button onclick="window.location.href='employees.html'">Edit Employees</button>
             <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
             <br>
+            <hr>
+            <p>Current User: <span id="currentUser" style="color: white;"></span></p>
+            <button onclick="signOut()" class="btn-logout" style="background-color: #dc3545; color: white;">Sign Out</button>
         </div>
-        <hr>
-        <hr> 
         <div class="main-content">
             <h3>Shifts</h3>
             <div id="ShiftviewOutput"></div>
@@ -57,8 +59,8 @@
                             <hr>
                             <div id="availabilityContainer"></div>
                             <br>
-                            <button onclick="saveAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
-                            <button onclick="location.reload()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
+                            <button onclick="setAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
+                            <button onclick="closeAvailabilityPopup()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -84,8 +86,8 @@
                     <hr>
                     <div id="availabilityContainer"></div>
                     <br>
-                    <button onclick="saveAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
-                    <button onclick="location.reload()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
+                    <button onclick="setAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
+                    <button onclick="closeAvailabilityPopup()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
                 </div>
             </div>
         </div>

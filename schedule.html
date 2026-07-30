@@ -6,10 +6,13 @@
     <body>
         <div class="sidebar">
             <h1>Create Schedule</h1>
-            <button onclick="window.location.href='index.html'">Home</button>
+            <button onclick="window.location.href='homepage.html'">Home</button>
             <button onclick="window.location.href='employees.html'">Edit Employees</button>
             <button onclick="window.location.href='shifts.html'">Edit Shifts</button>
             <br>
+            <hr>
+            <p>Current User: <span id="currentUser" style="color: white;"></span></p>
+            <button onclick="signOut()" class="btn-logout" style="background-color: #dc3545; color: white;">Sign Out</button>
         </div>
         <hr>
         <div class="main-content">

@@ -1,130 +1,203 @@
 import time
 from datetime import datetime, timedelta
-import csv_code 
 import DFS_algorithm
 import os
-from typing import Union
-from typing import Dict
-from fastapi import FastAPI
+import bcrypt
+from typing import Dict, Optional
+from fastapi import FastAPI, Response, Cookie
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from sqlmodel import Field, SQLModel, Session, create_engine, select
+from contextlib import asynccontextmanager
+
+
+"""DATABASE SECTION"""
+# 1. Accounts Table
+class UserAccount(SQLModel, table=True):
+    accountID: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(unique=True, index=True)
+    email: str
+    password: str
+
+# 2. Employees Table
+class EmployeeRow(SQLModel, table=True):
+    employee_id: Optional[int] = Field(default=None, primary_key=True)
+    accountID: int = Field(foreign_key="useraccount.accountID") # Maps back to the User table
+    name: str
+    hours_per_week: int
+
+# 3. Shifts Table
+class ShiftRow(SQLModel, table=True):
+    shift_ID: Optional[int] = Field(default=None, primary_key=True)
+    accountID: int = Field(foreign_key="useraccount.accountID") # Maps back to the User table
+    name: str
+    start_time: str
+    end_time: str
+    min_employees: int
+    max_employees: int
+
+# 4. Child Table: Employee Availability 
+class EmployeeAvailabilityRow(SQLModel, table=True):
+    availability_id: Optional[int] = Field(default=None, primary_key=True)
+    employee_id: int = Field(foreign_key="employeerow.employee_id") # Connects directly to parent employee
+    shift_name: str 
+    is_available: int = Field(default=1) # 1 for available, 0 for unavailable
+
+# 5. Child Table: Employee Vacations
+class EmployeeVacationRow(SQLModel, table=True):
+    vacation_id: Optional[int] = Field(default=None, primary_key=True)
+    employee_id: int = Field(foreign_key="employeerow.employee_id") # Connects directly to parent employee
+    start_date: str # "2026-06-01"
+    end_date: str   
+
+sqlite_file_name = "database.db"
+sqlite_url = f"sqlite:///{sqlite_file_name}"
+engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})
+
+
+
 
 """
 Main Application Server
 Handles all web requests, user authentication, and the scheduling algorithm.
-Written by: Cameron Solomway
 """
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  
-    allow_credentials=True,
-    allow_methods=["*"],  
-    allow_headers=["*"],
-)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Everything before 'yield' runs on application startup
+    SQLModel.metadata.create_all(engine)
+    yield
+    # Everything after 'yield' runs on shutdown (if needed)
 
-"""
-Loads initial data from CSV files into memory when the server starts.
-"""
-employees = csv_code.read_employees("employees.csv")
+app = FastAPI(lifespan=lifespan)
 
-shifts = csv_code.read_shifts("shifts.csv")
-
-accounts = csv_code.readAccounts("accounts.csv")
-
-current_user = None
 
 
 """
 Takes a start date and length to create a new employee work schedule.
 """
 class ScheduleParams(BaseModel):
+    owner_id: int
     start_date: str
     num_days: int
 
 @app.post("/generate")
 def generate(params: ScheduleParams):
-    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
-    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
-    start_date_str = params.start_date
-    start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-
-    num_Days = params.num_days
-    
-    result = dfs_schedule_helper(start_date, num_Days, user_emps, user_shifts)
-    
-    if result:
-        return {"status": "success", "schedule": result}
-    return {"status": "error", "message": "Could not generate schedule"}
+    result = generate_schedule(params.start_date, params.num_days, params.owner_id)
+    if "error" in result:
+        return {"status": "error", "message": result["error"]}
+    return result
 
 """
 Returns a list of employees that belong specifically to the logged-in user.
 """
-@app.get("/view_emps")
-def view_employees():
-    global current_user, employees, shifts
-    if current_user is None:
-        return {"status": "error", "message": "Not logged in"}
-    
-    user_shift_names = []
-    for shift_obj in shifts:
-        if str(shift_obj.get('owner_id')) == str(current_user):
-            user_shift_names.append(shift_obj['shift_name'])
-    
-    user_employees = []
-    for emp in employees:
-        if str(emp.get('owner_id')) == str(current_user):
-            emp_data = {
-                "id": emp['id'],
-                "name": emp['name'],
-                "hours_per_week": emp.get('hours_per_week', 0), 
-                "vacation": emp.get('vacation', []),
-                "availability": {}
-            }
-            
-            full_availability = emp.get('availability', {})
-            for shift_name in user_shift_names:
-                emp_data["availability"][shift_name] = full_availability.get(shift_name, 1)
-                
-            user_employees.append(emp_data)
+@app.get("/view_emps/{user_id}")
+def view_employees(user_id: int):
+    with Session(engine) as session:
+        # 1. Fetch all shifts created by the account
+        shift_statement = select(ShiftRow).where(ShiftRow.accountID == user_id)
+        user_shifts = session.exec(shift_statement).all()
+        
+        # 2. Fetch all parent employee rows belonging to this account
+        employee_statement = select(EmployeeRow).where(EmployeeRow.accountID == user_id)
+        db_employees = session.exec(employee_statement).all()
+        
+        users_employees = []
 
-    return {"status": "success", "employees": user_employees}
+        # 3. Iterate through each employee row safely
+        for emp in db_employees:
+            # Fetch child table vacations specifically for emp 
+            vac_stmt = select(EmployeeVacationRow).where(EmployeeVacationRow.employee_id == emp.employee_id)
+            db_vac = session.exec(vac_stmt).all()
+            vacation_list = [[v.start_date, v.end_date] for v in db_vac]
+
+            # Fetch their custom availabilities from the child table
+            avail_statement = select(EmployeeAvailabilityRow).where(EmployeeAvailabilityRow.employee_id == emp.employee_id)
+            db_availabilities = session.exec(avail_statement).all()
+            
+            # Map the database records back into a dictionary shape for JS code {"Morning Shift": 1, "Night Shift": 0}
+            availability_dict = {row.shift_name: row.is_available for row in db_availabilities}
+            
+            # If a new shift was created but this employee doesn't have an availability entered for it yet, default to available
+            for shift in user_shifts:
+                if shift.name not in availability_dict:
+                    availability_dict[shift.name] = 1
+            
+            emp_data = {
+                "id": emp.employee_id,
+                "name": emp.name,
+                "hours_per_week": emp.hours_per_week,
+                "vacation": vacation_list, 
+                "availability": availability_dict
+            }
+            users_employees.append(emp_data)
+
+    return {"status": "success", "employees": users_employees}
 
 """
 Returns a list of all shifts created by the current user to display in the UI.
 """
-@app.get("/view_shifts")
-def get_shifts_table():
-    if current_user is None:
-        return {"status": "error", "message": "Not logged in"}
-
-    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
+@app.get("/view_shifts/{user_id}")
+def get_shifts_table(user_id: int):
+    with Session(engine) as session:
+        statement = select(ShiftRow).where(ShiftRow.accountID == user_id)
+        db_shifts = session.exec(statement).all()
+        
+        user_shifts = []
+        for shift in db_shifts:
+            user_shifts.append({
+                "shift_id": shift.shift_ID,
+                "owner_id": shift.accountID,
+                "shift_name": shift.name,
+                "start": shift.start_time,
+                "end": shift.end_time,
+                "min_employees": shift.min_employees,
+                "max_employees": shift.max_employees
+            })
+            
     return {"status": "success", "shift_table": user_shifts}
-
 
 """
 Returns a list of all employees created by the current user to display in the UI.
 """
-@app.get("/get_employees")
-def get_employees():
-    if current_user is None:
-        return {"status": "error", "message": "Not logged in"}
-
-    user_employees = [employee for employee in employees if employee.get('owner_id') == current_user]
+@app.get("/get_employees/{user_id}")
+def get_employees(user_id: int):
+    with Session(engine) as session:
+        statement = select(EmployeeRow).where(EmployeeRow.accountID == user_id)
+        db_employees = session.exec(statement).all()
+        
+        # Format the database objects into raw dictionary dictionaries for script.js
+        user_employees = []
+        for emp in db_employees:
+            user_employees.append({
+                "id": emp.employee_id,
+                "accountID": emp.accountID,
+                "name": emp.name,
+                "hours_per_week": emp.hours_per_week
+            })
     return user_employees
 
 
 """
 Fetches the raw shift data for internal system logic and dropdown menus.
 """
-@app.get("/get_shifts")
-def get_shifts():
-    if current_user is None:
-        return {"status": "error", "message": "Not logged in"}
-
-    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
+@app.get("/get_shifts/{user_id}")
+def get_shifts(user_id: int):
+    with Session(engine) as session:
+        statement = select(ShiftRow).where(ShiftRow.accountID == user_id)
+        db_shifts = session.exec(statement).all()
+        
+        user_shifts = []
+        for s in db_shifts:
+            user_shifts.append({
+                "shift_id": s.shift_ID,
+                "owner_id": s.accountID,
+                "shift_name": s.name,
+                "start": s.start_time,
+                "end": s.end_time,
+                "min_employees": s.min_employees,
+                "max_employees": s.max_employees
+            })
     return {"shifts": user_shifts}
 
 
@@ -132,53 +205,89 @@ def get_shifts():
 Creates a new employee record and links it to the current user's account.
 """
 class EmployeeInfo(BaseModel):
+    owner_id: int
     name: str
     hours_per_week: int
     availability: Dict[str, int]
 
 @app.post("/add_employee")
-def add_emp(emp: EmployeeInfo):
-    global employees
-    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
-    emp_ids = [emp.get('id') for emp in employees if emp.get('owner_id') == current_user]
-    new_id = len(user_emps) + 1
-    while new_id in emp_ids:
-        new_id = new_id + 1
-    new_emp = {
-        "owner_id": current_user,
-        "id": new_id,
-        "name": emp.name,
-        "hours_per_week": emp.hours_per_week,
-        "vacation": [],
-        "availability": emp.availability
-    }
-    employees.append(new_emp)
-    csv_code.save_employees_csv(employees)
+async def add_employee(emp_data: EmployeeInfo, userID: Optional[str] = Cookie(None)):
+    owner_id = emp_data.owner_id if emp_data.owner_id else (int(userID) if userID else None)
+    
+    if not owner_id:
+        return {"status": "error", "message": "Authentication cookie missing. Please log in again."}
 
-    return {"status": "success", "message": f"Added {emp.name} successfully!"}
+    with Session(engine) as session:
+        new_emp = EmployeeRow(
+            accountID=owner_id, 
+            name=emp_data.name, 
+            hours_per_week=emp_data.hours_per_week
+        )
+        session.add(new_emp)
+        session.commit()
+        session.refresh(new_emp)
+
+        # Map shift profiles based on the frontend checkboxes
+        for shift_id_str, status in emp_data.availability.items():
+            # Query for the shift name using the shift ID
+            shift_stmt = select(ShiftRow).where(ShiftRow.shift_ID == int(shift_id_str))
+            target_shift = session.exec(shift_stmt).first()
+            
+            if target_shift:
+                new_avail = EmployeeAvailabilityRow(
+                    employee_id=new_emp.employee_id,
+                    shift_name=target_shift.name,  # Saves the shift name string to match validation rules
+                    is_available=int(status)
+                )
+                session.add(new_avail)
+        session.commit()
+    return {"status": "success"}
+
 
 """
 Permanently removes an employee from the system and updates the database.
 """
 class EmpID(BaseModel):
+    owner_id: int
     emp_id: int
+
 
 @app.post("/remove_employee")
 def remove_emp(param: EmpID):
-    global employees
-    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
-    for employee in employees:
-        if employee['id'] == param.emp_id and employee in user_emps:
-            employees.remove(employee)
-            name = employee['name']
-            csv_code.save_employees_csv(employees)
-    return {"status": "success", "message": f"Successfully Removed {name} with Employee ID={param.emp_id}."}
+    with Session(engine) as session:
+        # 1. Fetch the employee record that belongs to this specific account
+        statement = select(EmployeeRow).where(
+            EmployeeRow.employee_id == param.emp_id, 
+            EmployeeRow.accountID == param.owner_id
+        )
+        employee = session.exec(statement).first()
+        
+        if employee:
+            name = employee.name
+            
+            # 2. Clean up their records from child tables first to avoid orphan rows
+            avail_statement = select(EmployeeAvailabilityRow).where(EmployeeAvailabilityRow.employee_id == param.emp_id)
+            for row in session.exec(avail_statement).all():
+                session.delete(row)
+                
+            vac_statement = select(EmployeeVacationRow).where(EmployeeVacationRow.employee_id == param.emp_id)
+            for row in session.exec(vac_statement).all():
+                session.delete(row)
+                
+            # 3. Delete the parent employee row
+            session.delete(employee)
+            session.commit()
+            return {"status": "success", "message": f"Successfully Removed {name} with Employee ID={param.emp_id}."}
+            
+    return {"status": "error", "message": f"Employee ID {param.emp_id} not found."}
+
 
 
 """
 Adds a new work shift (like 'Morning' or 'Afternoon') to the user's profile.
 """
 class ShiftInfo(BaseModel):
+    owner_id: int
     name: str
     start: str
     end: str
@@ -186,139 +295,156 @@ class ShiftInfo(BaseModel):
     max_emp: int
 
 @app.post("/add_shift")
-def add_shift(param: ShiftInfo):
-    global shifts
-    global employees
-    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
-
-    if not user_shifts:
-        new_id = 1
-    else:
-        new_id = max(int(shift['shift_id']) for shift in user_shifts) + 1
-        
-
-    new_shift = {
-        "owner_id": current_user,
-        "shift_id": new_id,
-        "shift_name": param.name,
-        "start": param.start,
-        "end": param.end,
-        "min_employees": param.min_emp,
-        "max_employees": param.max_emp
-    }
+async def add_shift(shift_data: ShiftInfo, userID: Optional[str] = Cookie(None)):
+    owner_id = shift_data.owner_id if shift_data.owner_id else (int(userID) if userID else None)
     
-    shifts.append(new_shift)
-    csv_code.save_shifts_csv(shifts)
-    csv_code.save_employees_csv(employees)
-    
-    return {"status": "success", "message": f"Shift '{param.name}' with ID={new_id} added successfully!"}
+    if not owner_id:
+        return {"status": "error", "message": "Authentication cookie missing. Please log in again."}
 
+    with Session(engine) as session:
+        new_shift = ShiftRow(
+            accountID=owner_id,
+            name=shift_data.name,
+            start_time=shift_data.start,
+            end_time=shift_data.end,
+            min_employees=shift_data.min_emp,
+            max_employees=shift_data.max_emp
+        )
+        session.add(new_shift)
+        session.commit()
+    return {"status": "success"}
 
 """
 Deletes a shift and automatically cleans it out of every employee's availability.
 """
 class ShiftID(BaseModel):
+    owner_id: int
     shift_id: int
+
 
 @app.post("/remove_shift")
 def remove_shift(param: ShiftID):
-    global shifts
-    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
-    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
-    for shift in user_shifts:
-        if int(shift['shift_id']) == param.shift_id and shift in user_shifts:
-            sname = shift['shift_name']
-            for emp in user_emps:
-                if shift["shift_name"] in emp["availability"]:
-                    del emp["availability"][shift["shift_name"]]
-            shifts.remove(shift)
-            csv_code.save_shifts_csv(shifts)
-            csv_code.save_employees_csv(employees)
-            return {"status": "success", "message": f"Successfully Removed {sname} (ID: {param.shift_id})."}
+    with Session(engine) as session:
+        # 1. Find the shift row belonging to this user
+        statement = select(ShiftRow).where(
+            ShiftRow.shift_ID == param.shift_id,
+            ShiftRow.accountID == param.owner_id
+        )
+        shift = session.exec(statement).first()
+        
+        if shift:
+            shift_name = shift.name
+            
+            # 2. Cascade delete preferences matching this shift name across all employees belonging to this account
+            emp_statement = select(EmployeeRow).where(EmployeeRow.accountID == param.owner_id)
+            user_employees = session.exec(emp_statement).all()
+            emp_ids = [e.employee_id for e in user_employees]
+            
+            if emp_ids:
+                avail_statement = select(EmployeeAvailabilityRow).where(
+                    EmployeeAvailabilityRow.employee_id.in_(emp_ids),
+                    EmployeeAvailabilityRow.shift_name == shift_name
+                )
+                for row in session.exec(avail_statement).all():
+                    session.delete(row)
+            
+            # 3. Delete the shift itself
+            session.delete(shift)
+            session.commit()
+            return {"status": "success", "message": f"Successfully Removed {shift_name} (ID: {param.shift_id})."}
             
     return {"status": "error", "message": f"Error: Shift ID {param.shift_id} not found."}
+
+
+
 
 """
 Updates the availability (Yes/No) for multiple employees across different shifts at once.
 """
-class BulkUpdate(BaseModel):
-    updates: Dict[str, Dict]
+class AvailabilityUpdates(BaseModel):
+    updates: Dict[str, Dict[str, Dict[str, int]]]
 
 @app.post("/update_availability")
-def update_all_availability(data: BulkUpdate):
-    global employees
-    
-    for emp_id_str, update_info in data.updates.items():
-        emp_id = int(emp_id_str)
-        new_avail = update_info['availability']
+def update_availability(payload: AvailabilityUpdates):
+    with Session(engine) as session:
+        # payload.updates looks like: {"emp_id": {"availability": {"Shift Name": 1}}}
+        for emp_id_str, data in payload.updates.items():
+            try:
+                emp_id = int(emp_id_str)
+            except ValueError:
+                continue # Skip invalid data keys like "null" or "undefined"
+
+            # 1. Clear existing availability records for this specific employee
+            delete_statement = select(EmployeeAvailabilityRow).where(EmployeeAvailabilityRow.employee_id == emp_id)
+            existing_records = session.exec(delete_statement).all()
+            for record in existing_records:
+                session.delete(record)
+            
+            # Flush the deletions to make room for new records
+            session.commit()
+
+            # 2. Extract the fresh shift mappings sent by the frontend
+            availability_dict = data.get("availability", {})
+
+            # 3. Insert a fresh row for each shift checkbox value
+            for shift_name, status in availability_dict.items():
+                new_availability = EmployeeAvailabilityRow(
+                    employee_id=emp_id,
+                    shift_name=shift_name,
+                    is_available=int(status)  # Converts boolean/int cleanly to database storage
+                )
+                session.add(new_availability)
         
-        for emp in employees:
-            if emp['id'] == emp_id:
-                emp['availability'].update(new_avail)
-                break
-    
-    csv_code.save_employees_csv(employees)
+        # Commit all changes to the database permanently
+        session.commit()
+        
     return {"status": "success"}
 
 """
 Saves a specific date range where an employee is marked as unavailable to work.
 """
 class VacationInfo(BaseModel):
+    owner_id: int
     emp_id: int
     start_date: str
     end_date: str
 
 @app.post("/add_vacation")
-def add_vacation(info: VacationInfo):
-    global employees
-    
-    # Validate date formats
-    try:
-        datetime.strptime(info.start_date, "%Y-%m-%d")
-        datetime.strptime(info.end_date, "%Y-%m-%d")
-    except ValueError:
-        return {"status": "error", "message": "Invalid date format. Use YYYY-MM-DD."}
+def add_vacation(param: VacationInfo):
+    with Session(engine) as session:
+        # 1. Create a new row entry directly in the vacation child table
+        new_vacation = EmployeeVacationRow(
+            employee_id=param.emp_id, # Target employee ID from frontend payload
+            start_date=param.start_date,
+            end_date=param.end_date
+        )
+        session.add(new_vacation)
+        session.commit()
+        
+    return {"status": "success", "message": "Vacation added successfully!"}
 
-    for employee in employees:
-        if employee['id'] == info.emp_id:
-            # Append the range to the vacation list
-            employee['vacation'].append([info.start_date, info.end_date])
-            csv_code.save_employees_csv(employees)
-            return {"status": "success", "message": f"Vacation added for {employee['name']}"}
-            
-    return {"status": "error", "message": "Employee ID not found."}
-
-
-"""
-Removes a specific vacation entry from an employee's history.
-"""
-class DeleteVacationRequest(BaseModel):
-    emp_id: int
-    vac_index: int
 
 @app.post("/delete_vacation")
-def delete_vacation(data: DeleteVacationRequest):
-    global employees
-    
-    for employee in employees:
-        # Match ID and make sure it belongs to the logged-in user
-        if employee['id'] == data.emp_id and employee.get('owner_id') == current_user:
+def delete_vacation(param: VacationInfo):
+    with Session(engine) as session:
+        # 1. Query for the exact row matching the employee ID and specified dates
+        statement = select(EmployeeVacationRow).where(
+            EmployeeVacationRow.employee_id == param.emp_id,
+            EmployeeVacationRow.start_date == param.start_date,
+            EmployeeVacationRow.end_date == param.end_date
+        )
+        vacation_row = session.exec(statement).first()
+        
+        # 2. If found, delete the row from the database
+        if vacation_row:
+            session.delete(vacation_row)
+            session.commit()
+            return {"status": "success", "message": "Vacation deleted successfully!"}
             
-            # Check if the index of vacation actually exists in users vacation list
-            if 0 <= data.vac_index < len(employee['vacation']):
-                removed_val = employee['vacation'].pop(data.vac_index)
-                
-                # Save the changes to the CSV
-                csv_code.save_employees_csv(employees)
-                
-                return {
-                    "status": "success", 
-                    "message": f"Successfully removed vacation: {removed_val}"
-                }
-            else:
-                return {"status": "error", "message": "Invalid vacation selection."}
-                
-    return {"status": "error", "message": "Employee not found or access denied."}
+    return {"status": "error", "message": "Vacation record not found."}
+
+
+"""SIGN-IN/ACCOUNT INFO"""
 
 """
 Verifies login credentials and starts a user session.
@@ -328,18 +454,24 @@ class AccountInfo(BaseModel):
     password: str
 
 @app.post("/signIn")
-def signIn(info: AccountInfo):
-    global current_user
-    for account in accounts:
-        if info.username == account['username'] and info.password == account['password']: #User entered both parameters correctly
-            csv_code.read_employees("employees.csv")
-            csv_code.read_shifts("shifts.csv")
-            current_user = account['owner_id']
-            return {"status": "success", "message": f"{account['username']} has successfully signed in."}
-        if info.username == account['username'] and info.password != account['password']:
-            return {"status": "error", "message": "Please verify your password is entered correctly."}
-    return {"status": "error", "message": f"{info.username} is not a valid username."}
-
+async def sign_in(account_data: AccountInfo, response: Response): # Add response here
+    with Session(engine) as session:
+        statement = select(UserAccount).where(UserAccount.username == account_data.username)
+        user = session.exec(statement).first()
+        
+        if user:
+            entered_password = account_data.password.encode('utf-8')
+            stored_password = user.password.encode('utf-8')
+            if bcrypt.checkpw(entered_password, stored_password):
+                # Set a session cookie containing the user's account ID
+                response.set_cookie(key="userID",value=str(user.accountID), path="/")
+                return {
+                    "status": "success", 
+                    "accountID": user.accountID, 
+                    "username": user.username
+                    }
+            
+        return {"status": "error", "message": "Invalid username or password."}
 
 """
 Registers a new user and saves their credentials to the database.
@@ -352,39 +484,56 @@ class NewAccountInfo(BaseModel):
 
 @app.post("/createAccount")
 def createAccount(info: NewAccountInfo):
-    global current_user
-    global accounts
-    csv_code.readAccounts("accounts.csv")
-    for account in accounts:
-        if info.username == account['username']: # No Dupe Usernames
-            return {"status": "error", "message": f"Username:{account['username']} is already in use."}
-    if info.password == info.password_check: # User entered both password fields correctly 
-        new_owner_id = len(accounts) + 1 # Create AccountID 
-        new_account = {
-            "owner_id": new_owner_id,
-            "username": info.username,
-            "email": info.email,
-            "password": info.password,
-            "employees": [], 
-            "shifts": []
+    if info.password != info.password_check:
+        return {"status": "error", "message": "Passwords do not match."}
+        
+    with Session(engine) as session:
+        # Check if username is already taken
+        statement = select(UserAccount).where(UserAccount.username == info.username)
+        existing = session.exec(statement).first()
+        if existing:
+            return {"status": "error", "message": f"Username:{info.username} is already in use."}
+            
+        # Encrypt password
+        password_bytes = info.password.encode('utf-8')
+        salt = bcrypt.gensalt()
+        hashed_password_bytes = bcrypt.hashpw(password_bytes, salt)
+        encrypted_password = hashed_password_bytes.decode('utf-8')
+
+
+        # Insert new account row
+        new_account = UserAccount(
+            username=info.username,
+            email=info.email,
+            password=encrypted_password
+        )
+        session.add(new_account)
+        session.commit()
+        session.refresh(new_account)
+        
+        return {
+            "status": "success", 
+            "message": f"Account {info.username} created successfully!",
+            "user_id": new_account.accountID
         }
-        accounts.append(new_account)
-        current_user = new_owner_id
-
-        csv_code.saveAccounts(accounts, "accounts.csv")
-        csv_code.read_employees("employees.csv")
-        csv_code.read_shifts("shifts.csv")
-
-        return {"status": "success", "message": f"The account {info.username} has been created."}
-    else:
-        return {"status": "error", "message": f"ERROR: Ensure your passwords match."}
-
-
 
 
 ################################
 #       Other Functions        #
 ################################
+class ShiftTime(BaseModel):
+    startTime: str
+    endTime: str
+
+@app.post("/convertFromMilitaryTime")
+def convertFromMilitaryTime(param: ShiftTime):
+    startTimeObject = datetime.strptime(param.startTime, "%H:%M")
+    endTimeObject = datetime.strptime(param.endTime, "%H:%M")
+    convertedStartTimeObject = startTimeObject.strftime("%I:%M%p")
+    convertedEndTimeObject = endTimeObject.strftime("%I:%M%p")
+    return [convertedStartTimeObject, convertedEndTimeObject]
+    
+
 
 """
 Sets up the logic and data structures needed for the algorithm to run the schedule.
@@ -426,9 +575,51 @@ def dfs_schedule_helper(start_date, num_days, user_employees, user_shifts):
 """
 A wrapper function that calculates the algorithm's runtime and handles errors.
 """
-def generate_schedule(start_date_str: str, num_days: int):
-    user_shifts = [shift for shift in shifts if shift.get('owner_id') == current_user]
-    user_emps = [emp for emp in employees if emp.get('owner_id') == current_user]
+def generate_schedule(start_date_str: str, num_days: int, user_id: int):
+    with Session(engine) as session:
+        # 1. Fetch the user's raw shifts from the database
+        shift_statement = select(ShiftRow).where(ShiftRow.accountID == user_id)
+        db_shifts = session.exec(shift_statement).all()
+        
+        user_shifts = [{
+            "owner_id": shift.accountID,
+            "shift_id": shift.shift_ID,
+            "shift_name": shift.name,
+            "start": shift.start_time,
+            "end": shift.end_time,
+            "min_employees": shift.min_employees,
+            "max_employees": shift.max_employees
+        } for shift in db_shifts]
+
+        # 2. Fetch the user's employees and rebuild their context maps
+        emp_statement = select(EmployeeRow).where(EmployeeRow.accountID == user_id)
+        db_employees = session.exec(emp_statement).all()
+        
+        user_emps = []
+        for emp in db_employees:
+            # Re-fetch child table preferences
+            avail_stmt = select(EmployeeAvailabilityRow).where(EmployeeAvailabilityRow.employee_id == emp.employee_id)
+            db_avail = session.exec(avail_stmt).all()
+            availability_dict = {row.shift_name: row.is_available for row in db_avail}
+            
+            # Default missing checkmarks to available (1)
+            for s in user_shifts:
+                if s["shift_name"] not in availability_dict:
+                    availability_dict[s["shift_name"]] = 1
+                    
+            # Re-fetch child table vacations
+            vac_stmt = select(EmployeeVacationRow).where(EmployeeVacationRow.employee_id == emp.employee_id)
+            db_vac = session.exec(vac_stmt).all()
+            vacation_list = [[v.start_date, v.end_date] for v in db_vac]
+            
+            user_emps.append({
+                "owner_id": emp.accountID,
+                "id": emp.employee_id,
+                "name": emp.name,
+                "hours_per_week": emp.hours_per_week,
+                "vacation": vacation_list,
+                "availability": availability_dict
+            })
     
     if not user_shifts or not user_emps:
         return {"error": "No shifts or employees to schedule."}

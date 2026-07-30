@@ -6,14 +6,14 @@
     <body>
         <div class="sidebar">
             <h1>Edit Employees</h1>
-            <button onclick="window.location.href='index.html'">Home</button>
-            <button onclick="window.location.href='shifts.html'">Edit Shifts</button>
-            <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
-            <br>
+                <button onclick="window.location.href='homepage.html'">Home</button>
+                <button onclick="window.location.href='shifts.html'">Edit Shifts</button>
+                <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
+                <br>
+                <hr>
+                <p>Current User: <span id="currentUser" style="color: white;"></span></p>
+                <button onclick="signOut()" class="btn-logout" style="background-color: #dc3545; color: white;">Sign Out</button>
         </div>
-        <hr>
-
-
         <div class="main-content">
             <h3>Employees</h3>
             <div id="EmpviewOutput"></div>
@@ -22,7 +22,7 @@
             <div class="auth-row">
                 <div class="auth-box">
                     <h3>Add Employees</h3>
-                    <form>
+                    <form onsubmit="event.preventDefault(); add_emp();">
                         <div>
                             <label for="emp_name">Name of New Employee:</label><br>
                             <input type="text" id="emp_name" name="emp_name" placeholder="Employee Name">
@@ -32,7 +32,7 @@
                             <input type="number" id="desired_hours" name="desired_hours" placeholder="Hours">
                         </div>
                         <div id="shiftCheckboxes"></div>
-                        <input type="button" value="Submit" onclick="add_emp()">
+                        <input type="submit" value="Submit">
                     </form>
                 </div>
 
@@ -104,8 +104,8 @@
                             <hr>
                             <div id="availabilityContainer"></div>
                             <br>
-                            <button onclick="saveAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
-                            <button onclick="location.reload()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
+                            <button onclick="setAllAvailability()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
+                            <button onclick="closeAvailabilityPopup()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
                         </div>
                     </div>
                 </div>

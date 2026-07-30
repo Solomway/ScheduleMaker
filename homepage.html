@@ -5,31 +5,59 @@
     </head>
     <body>
         <div class='sidebar'>
-
-        <h1>
-            Schedule Maker 0.1.2
-        </h1>
-        
-            <button onclick="window.location.href='employees.html'">Edit Employees</button>
-            <button onclick="window.location.href='shifts.html'">Edit Shifts</button>
-            <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
-            <br>
+            <h1>Schedule Maker 0.2.2</h1>
+                <button onclick="window.location.href='employees.html'">Edit Employees</button>
+                <button onclick="window.location.href='shifts.html'">Edit Shifts</button>
+                <button onclick="window.location.href='schedule.html'">Edit Schedule</button>
+                <br>
+                <hr>
+                <p>Current User: <span id="currentUser" style="color: white;"></span></p>
+                <button onclick="signOut()" class="btn-logout" style="background-color: #dc3545; color: white;">Sign Out</button>
         </div>
 
         
         <div class="main-content">
-            <h2>
-                Tutorial
-            </h2>
-            <p>To begin sign in or create an account in order to access your data, or click on continue as guest.</p>
-            <p>Then click on the 'Edit Employees' button to add, remove, and view your list of employees.</p>
-            <p>Once finished click on the 'Edit Shifts' button to add, remove, and view your list of shifts.</p>
-            <p>To create your schedule click on the 'Edit Schedule' button then select your starting date.</p>
-            <p>Next enter the number of days the schedule will be, and finally click on 'Generate Schedule'</p>
-            <hr>
-            <p>***This website is in a unfinished state, and will continuously receive updates until it is usable to people of all businesses.***</p> 
-                     
+            <h2>Tutorial</h2>
+            
+            <ol class="tutorial-steps">
+                <li>To begin, sign in or create an account to access your data, or click on <strong>Continue as Guest</strong>.</li>
+                <li>Click on the <strong>'Edit Employees'</strong> button to add, remove, and view your list of employees.</li>
+                <li>Once finished, click on the <strong>'Edit Shifts'</strong> button to add, remove, and view your list of shifts.</li>
+                <li>To create your schedule, click on the <strong>'Edit Schedule'</strong> button, then select your starting date.</li>
+                <li>Enter the number of days the schedule will span, and finally click on <strong>'Generate Schedule'</strong>.</li>
+            </ol>
 
+            <hr>
+            
+            <p class="status-notice">
+                <em><strong>Notice:</strong> This website is in an unfinished state, and will continuously receive updates until it is usable for businesses of all types.</em>
+            </p> 
+            
+            <hr>
+
+            <h3>Major Updates</h3>
+            <ul class="update-list">
+                <li>Created database to store all information instead of a CSV file.</li>
+                <li>Added session tokens & cookies to allow concurrent users and edits.</li>
+                <li>Password encryptions</li>
+            </ul>
+
+            <h3>Minor Updates</h3>
+            <ul class="update-list">
+                <li>Added "Currently logged in as X" on the sidebar.</li>
+                <li>Sign out functionality</li>
+            </ul>
+
+            <hr>
+            
+            <h3>Coming Soon</h3>
+            <ul class="upcoming-list">
+                <li>Day-specific shifts (e.g., Weekends only).</li>
+                <li>Custom shifts (e.g., specific day temporary needs — Canada Day might need an additional 3pm–11pm shift).</li>
+                <li>Options to schedule statutory holidays.</li>
+                <li>Algorithm updates to further balance the final schedule (e.g., preventing employee X from working a weekend until everyone else has worked one).</li>
+                <li>Better Schedule Layouts + Download pdf option</li>
+            </ul>
 
             <div class="auth-row">
                 <div id="signIn" class="auth-box">
