@@ -51,10 +51,23 @@ class EmployeeVacationRow(SQLModel, table=True):
     start_date: str # "2026-06-01"
     end_date: str   
 
-sqlite_file_name = "database.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
-engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})
+# Fetch DATABASE_URL from Render env variables. Fallback to local SQLite for local testing!
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database.db")
 
+# Render gives connection strings starting with 'postgres://', but SQLAlchemy requires 'postgresql://'
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Connect to SQLite locally or PostgreSQL on Render
+connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
+if "sqlite" in DATABASE_URL:
+    print("--> Using LOCAL SQLite Database")
+else:
+    print("--> Using RENDER PostgreSQL Database")
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
 
 
 
