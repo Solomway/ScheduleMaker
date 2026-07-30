@@ -38,6 +38,7 @@ def is_scheduled_today(emp_name, date_str, schedule):
             return True
     return False
 
+
 """
 Loads a list of statutory holidays from a CSV file to be used by the scheduler.
 """
@@ -49,3 +50,5 @@ def read_holidays(filename):
             date, name = row
             holidays.append([date, name])
     return holidays
+
+holidays = read_holidays("statHolidays.csv")
