@@ -22,26 +22,42 @@
             <hr>
             <div class="auth-row">
                 <div class="auth-box">
-                    <h3>Add Shifts</h3>
-                    <form>
+                <h3>Add Shifts</h3>
+                <form>
                     <label for="shift_name">Name of New Shift:</label><br>
-                    <input type="text" id="shift_name" name="shift_name" placeholder="Shift Name"><br>
-                    <br>
-                    <label for="start_time">Starting Time of the New Shift:</label><br>
-                    <input type="time" id="start_time" name="start_time"><br>
-                    <br>
-                    <label for="end_time">Ending Time of the New Shift:</label><br>
-                    <input type="time" id="end_time" name="end_time"><br>
-                    <br>
-                    <label for="min_emp">Minimum Employees Needed for the New Shift:</label><br>
-                    <input type="number" id="min_emp" name="min_emp"><br>
-                    <br>
-                    <label for="max_emp">Maximum Employees Needed for the New Shift:</label><br>
-                    <input type="number" id="max_emp" name="max_emp"><br>
+                    <input type="text" id="shift_name" name="shift_name" placeholder="Shift Name"><br><br>
 
-                    <br><input type="button" value="Submit" onclick="add_shift()">
-                    </form>
-                </div>
+                    <label for="start_time">Starting Time of the New Shift:</label><br>
+                    <input type="time" id="start_time" name="start_time"><br><br>
+
+                    <label for="end_time">Ending Time of the New Shift:</label><br>
+                    <input type="time" id="end_time" name="end_time"><br><br>
+
+                    <label for="min_emp">Minimum Employees Needed:</label><br>
+                    <input type="number" id="min_emp" name="min_emp"><br><br>
+
+                    <label for="max_emp">Maximum Employees Needed:</label><br>
+                    <input type="number" id="max_emp" name="max_emp"><br><br>
+
+                    <!-- Dynamic Weekend Controls -->
+                    <hr style="border: 0.5px solid #ccc; margin: 15px 0;">
+                    <label>
+                        <input type="checkbox" id="active_weekends" onchange="toggleWeekendFields()"> 
+                        Active on Weekends
+                    </label><br><br>
+
+                    <!-- Hidden by default -->
+                    <div id="weekend_fields" style="display: none;">
+                        <label for="weekend_min">Weekend Min Employees (Optional):</label><br>
+                        <input type="number" id="weekend_min" placeholder="Leave blank for same as weekday"><br><br>
+
+                        <label for="weekend_max">Weekend Max Employees (Optional):</label><br>
+                        <input type="number" id="weekend_max" placeholder="Leave blank for same as weekday"><br><br>
+                    </div>
+
+                    <input type="button" value="Submit" onclick="add_shift()">
+                </form>
+            </div>
                 <div class="auth-box">
                     <h3>Remove Shifts</h3>
                     <form>
@@ -49,7 +65,7 @@
                         <input type="number" id="shift_id" name="shift_id" placeholder="Shift ID"><br>
                         <br><input type="button" value="Submit" onclick="remove_shift()">
                     </form>
-                    <br><br><br>
+                    <br>
                     <h3>Modify Shift Availability</h3>
                     <button onclick="openAvailabilityPopup()">Edit</button>
                     <div id="availabilityPopup">
@@ -63,6 +79,9 @@
                             <button onclick="closeAvailabilityPopup()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
                         </div>
                     </div>
+                    <br>
+                    <h3>Shift Settings</h3>
+                    <button>Settings</button>
                 </div>
             </div>
             <br>

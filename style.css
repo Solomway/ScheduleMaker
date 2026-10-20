@@ -214,3 +214,28 @@ p {
 }
 
 
+/* EMPLOYEES AVAILABILITY */
+
+.status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-yes {
+    background-color: #e6f4ea;
+    color: #137333;
+}
+
+.status-partial {
+    background-color: #fef7e0;
+    color: #b06000;
+}
+
+.status-no {
+    background-color: #fce8e6;
+    color: #c5221f;
+}

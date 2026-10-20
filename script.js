@@ -80,13 +80,22 @@ function renderScheduleTable(scheduleData) {
 /*
 Dynamically builds a table displaying all employee details, including their IDs, hours, and availability.
 */
+/*
+Dynamically builds a table displaying all employee details, including their IDs, hours, and availability.
+*/
 function renderEmployeeTable(employee_data) {
     const container = document.getElementById('EmpviewOutput');
     if (!container) return;
 
     const hasData = employee_data && employee_data.length > 0;
-    const firstEmployee = hasData ? employee_data[0] : null;
-    const shiftNames = firstEmployee ? Object.keys(firstEmployee.availability || {}) : [];
+    
+    // Extract strictly base shift names (ignoring "Shift - Saturday" / "Shift - Sunday" keys)
+    let baseShiftNames = [];
+    if (hasData) {
+        const rawKeys = Object.keys(employee_data[0].availability || {});
+        const uniqueBases = new Set(rawKeys.map(key => key.split(' - ')[0]));
+        baseShiftNames = Array.from(uniqueBases);
+    }
 
     let html = `
         <table class="schedule-table">
@@ -95,14 +104,14 @@ function renderEmployeeTable(employee_data) {
                     <th>ID</th>
                     <th>Name</th>
                     <th>Hrs/Wk</th>
-                    ${shiftNames.map(name => `<th>${name.toUpperCase()}</th>`).join('')}
-                    <th>Vacation</th>
+                    ${baseShiftNames.map(name => `<th>${name.toUpperCase()}</th>`).join('')}
+                    <th>Vacation / Days Off</th>
                 </tr>
             </thead>
             <tbody>`;
 
     if (!hasData) {
-        const totalColumns = 4 + shiftNames.length; 
+        const totalColumns = 4 + baseShiftNames.length; 
         html += `
             <tr>
                 <td colspan="${totalColumns}" style="text-align: center;">No employees found.</td>
@@ -110,22 +119,62 @@ function renderEmployeeTable(employee_data) {
     } 
     else {
         employee_data.forEach(employee => {
-            const vacationStrings = employee.vacation.map(range => {
+            // 1. Format standard vacation date ranges
+            const vacationStrings = (employee.vacation || []).map(range => {
                 const startDate = range[0];
                 const endDate = range[1];
                 return startDate === endDate ? startDate : `${startDate} to ${endDate}`;
             });
+
+            // 2. Format recurring days off (e.g., ["Friday", "Saturday", "Sunday"])
+            const daysOff = employee.recurring_days_off || [];
+            if (daysOff.length > 0) {
+                vacationStrings.push(`Every ${daysOff.join(', ')}`);
+            }
 
             html += `
                 <tr>
                     <td>${employee.id}</td>
                     <td><strong>${employee.name}</strong></td>
                     <td>${employee.hours_per_week}</td>
-                    ${shiftNames.map(name => {
-                        const isAvailable = employee.availability[name] === 1;
-                        return `<td>${isAvailable ? "Yes" : "No"}</td>`;
+                    ${baseShiftNames.map(baseShift => {
+                        const avail = employee.availability || {};
+                        
+                        const isBaseAvail = avail[baseShift] === 1;
+                        const satKey = `${baseShift} - Saturday`;
+                        const sunKey = `${baseShift} - Sunday`;
+
+                        const hasWeekendKeys = (satKey in avail) || (sunKey in avail);
+                        const isSatAvail = avail[satKey] !== 0;
+                        const isSunAvail = avail[sunKey] !== 0;
+
+                        let statusLabel = "No";
+                        let badgeClass = "status-no";
+
+                        if (isBaseAvail) {
+                            if (hasWeekendKeys) {
+                                if (isSatAvail && isSunAvail) {
+                                    statusLabel = "Yes";
+                                    badgeClass = "status-yes";
+                                } else if (isSatAvail) {
+                                    statusLabel = "Weekdays + Sat";
+                                    badgeClass = "status-partial";
+                                } else if (isSunAvail) {
+                                    statusLabel = "Weekdays + Sun";
+                                    badgeClass = "status-partial";
+                                } else {
+                                    statusLabel = "Mon-Fri Only";
+                                    badgeClass = "status-partial";
+                                }
+                            } else {
+                                statusLabel = "Yes";
+                                badgeClass = "status-yes";
+                            }
+                        }
+
+                        return `<td><span class="status-badge ${badgeClass}">${statusLabel}</span></td>`;
                     }).join('')}
-                    <td><small>${vacationStrings.join(", ") || "None"}</small></td>
+                    <td><small>${vacationStrings.join("<br>") || "None"}</small></td>
                 </tr>`;
         });
     }
@@ -148,7 +197,9 @@ async function renderShiftTable(shift_data) {
                     <th>ID</th>
                     <th>Shift Name</th>
                     <th>Times</th>
-                    <th>Staffing (Min/Max)</th>
+                    <th>Weekday (Min/Max)</th>
+                    <th>Weekend Active</th>
+                    <th>Weekend (Min/Max)</th>
                 </tr>
             </thead>
             <tbody>`;
@@ -156,7 +207,7 @@ async function renderShiftTable(shift_data) {
     if (!shift_data || shift_data.length === 0) {
         html += `
             <tr>
-                <td colspan="4" style="text-align: center;">No shifts found.</td>
+                <td colspan="6" style="text-align: center;">No shifts found.</td>
             </tr>`;
     } 
     else {
@@ -166,6 +217,12 @@ async function renderShiftTable(shift_data) {
             const minEmp = shift.min_employees;
             const maxEmp = shift.max_employees;
 
+            const weekendStatus = shift.active_weekends ? 'Yes' : 'No';
+            const weekendStaff = shift.active_weekends 
+                ? `${shift.weekend_min_employees} / ${shift.weekend_max_employees}` 
+                : 'N/A';
+
+            let formattedTimes = `${shift.start} - ${shift.end}`;
             try {
                 const response = await fetch('/convertFromMilitaryTime', {
                     method: 'POST',
@@ -175,25 +232,21 @@ async function renderShiftTable(shift_data) {
                         endTime: shift.end 
                     })
                 });
-                
                 const shiftTimes = await response.json(); 
-                
-                html += `
-                    <tr>
-                        <td>${sID}</td>
-                        <td><strong>${sName}</strong></td>
-                        <td>${shiftTimes[0]} - ${shiftTimes[1]}</td>
-                        <td>${minEmp} to ${maxEmp}</td>
-                    </tr>`;
+                formattedTimes = `${shiftTimes[0]} - ${shiftTimes[1]}`;
             } catch (err) {
-                html += `
-                    <tr>
-                        <td>${sID}</td>
-                        <td><strong>${sName}</strong></td>
-                        <td>${shift.start} - ${shift.end}</td>
-                        <td>${minEmp} to ${maxEmp}</td>
-                    </tr>`;
+                // fallback to raw times if conversion fails
             }
+
+            html += `
+                <tr>
+                    <td>${sID}</td>
+                    <td><strong>${sName}</strong></td>
+                    <td>${formattedTimes}</td>
+                    <td>${minEmp} / ${maxEmp}</td>
+                    <td>${weekendStatus}</td>
+                    <td>${weekendStaff}</td>
+                </tr>`;
         }
     }
 
@@ -250,70 +303,34 @@ async function loadShiftCheckboxes() {
 
     if (result.status === "success" && result.shift_table) {
         result.shift_table.forEach(shift => {
-            const label = document.createElement('label');
-            label.innerHTML = `
-                <input type="checkbox" value="${shift.shift_id}"> 
-                ${shift.shift_name}
-            `;
-            container.appendChild(label);
-            container.appendChild(document.createElement('br'));
+            // Define the options to create: standard shift first
+            const options = [{
+                id: `${shift.shift_id}`,
+                name: shift.shift_name
+            }];
+
+            // If active_weekends is true, append Saturday and Sunday options
+            if (shift.active_weekends) {
+                options.push(
+                    { id: `${shift.shift_id}_sat`, name: `${shift.shift_name} - Saturday` },
+                    { id: `${shift.shift_id}_sun`, name: `${shift.shift_name} - Sunday` }
+                );
+            }
+
+            // Render each option as a checkbox label
+            options.forEach(opt => {
+                const label = document.createElement('label');
+                label.style.display = 'block'; // Keeps checkboxes cleanly stacked
+                label.style.marginBottom = '6px';
+                label.innerHTML = `
+                    <input type="checkbox" value="${opt.id}" data-shift-name="${opt.name}"> 
+                    ${opt.name}
+                `;
+                container.appendChild(label);
+            });
         });
     }
 }
-
-/*
-Collects new employee data from the frontend form and sends it to the server to be saved.
-*/
-async function addShift() {
-    // Fresh dynamic lookup from localStorage
-    const loggedInUserId = localStorage.getItem('userID');
-    if (!loggedInUserId) {
-        alert("Session missing. Please log in.");
-        return;
-    }
-
-    const name = document.getElementById('shift_name').value;
-    const start = document.getElementById('start_time').value;
-    const end = document.getElementById('end_time').value;
-    const minEmp = document.getElementById('min_employees').value;
-    const maxEmp = document.getElementById('max_employees').value;
-
-    if (!name || !start || !end || !minEmp || !maxEmp) {
-        alert("Please fill out all shift details.");
-        return;
-    }
-
-    const payload = {
-        owner_id: parseInt(getCookie('userID')),
-        name: name,
-        start_time: start,
-        end_time: end,
-        min_employees: parseInt(minEmp),
-        max_employees: parseInt(maxEmp)
-    };
-
-    const response = await fetch('/add_shift', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
-    });
-
-    const result = await response.json();
-    if (result.status === "success") {
-        const msg = document.getElementById('popupMessage');
-        const popup = document.getElementById('statusPopup');
-        if (msg && popup) {
-            msg.innerText = `Successfully added shift: ${payload.name}`;
-            popup.style.display = "flex";
-        } else {
-            alert("Shift Added Successfully!");
-            location.reload();
-        }
-    } else {
-        alert(result.message || "Failed to add shift");
-    }
-}
-
 
 async function add_emp() {
     const loggedInUserId = localStorage.getItem('userID');
@@ -377,31 +394,55 @@ async function remove_emp() {
 /*
 Collects shift details from the UI and sends them to the backend to create a new work slot.
 */
-async function add_shift(){
-    const loggedInUserId = localStorage.getItem('userID');
+async function add_shift() {
+    const shiftName = document.getElementById('shift_name').value;
+    const startTime = document.getElementById('start_time').value;
+    const endTime = document.getElementById('end_time').value;
+    const minEmp = parseInt(document.getElementById('min_emp').value);
+    const maxEmp = parseInt(document.getElementById('max_emp').value);
+    
+    // Grab Weekend Inputs
+    const activeWeekends = document.getElementById('active_weekends').checked;
+    const weekendMinInput = document.getElementById('weekend_min').value;
+    const weekendMaxInput = document.getElementById('weekend_max').value;
 
-    const data = {
-        owner_id: parseInt(getCookie('userID')),
-        name: document.getElementById('shift_name').value,
-        start: document.getElementById('start_time').value,
-        end: document.getElementById('end_time').value,
-        min_emp: parseInt(document.getElementById('min_emp').value),
-        max_emp: parseInt(document.getElementById('max_emp').value)
-    }
+    // Default to standard min/max if weekend fields are left blank
+    const weekendMin = weekendMinInput !== "" ? parseInt(weekendMinInput) : minEmp;
+    const weekendMax = weekendMaxInput !== "" ? parseInt(weekendMaxInput) : maxEmp;
+
+    const payload = {
+        owner_id: parseInt(localStorage.getItem('userID') || getCookie('userID')),
+        name: shiftName,
+        start: startTime,
+        end: endTime,
+        min_emp: minEmp,
+        max_emp: maxEmp,
+        active_weekends: activeWeekends,
+        weekend_min_employees: activeWeekends ? weekendMin : null,
+        weekend_max_employees: activeWeekends ? weekendMax : null
+    };
 
     const response = await fetch('/add_shift', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
     });
 
     const result = await response.json();
-    if (result.status === "success") {
-        document.getElementById('popupMessage').innerText = `Successfully added the ${data['name']} shift.`;
-        document.getElementById('statusPopup').style.display = "block";
+    location.reload();
+    if (response.ok) {
+        openStatusPopup(); 
     } else {
-        alert("Error adding shift");
+        alert("Error adding shift: " + result.detail);
     }
+}
+
+function toggleWeekendFields() {
+    const isChecked = document.getElementById('active_weekends').checked;
+    const weekendContainer = document.getElementById('weekend_fields');
+    
+    // Show container if checked, hide if unchecked
+    weekendContainer.style.display = isChecked ? 'block' : 'none';
 }
 
 /*
@@ -458,19 +499,48 @@ async function openAvailabilityPopup() {
         let shiftHtml = '';
         shifts.forEach(shift => {
             const sName = shift.shift_name;
-            const isChecked = (emp.availability && emp.availability[sName] === 1) ? 'checked' : '';
+            const weekendKey = `${sName}_weekend`;
+
+            // Check existing availability settings
+            const isWeekdayChecked = (emp.availability && emp.availability[sName] === 1) ? 'checked' : '';
+            const isWeekendChecked = (emp.availability && emp.availability[weekendKey] === 1) ? 'checked' : '';
             
+            // Standard Weekday Option
             shiftHtml += `
-                <label style="margin-right:10px; color: black;">
+                <label style="margin-right:15px; color: black;">
                     <input type="checkbox" class="avail-check" 
                            data-empid="${emp.id}" 
-                           data-shiftname="${sName}" ${isChecked}>
+                           data-shiftname="${sName}" ${isWeekdayChecked}>
                     ${sName}
                 </label>`;
+
+            // Dynamic Weekend Option (if active on weekends)
+            // Dynamic Weekend Options (if active on weekends)
+        if (shift.active_weekends) {
+            const satKey = `${sName} - Saturday`;
+            const sunKey = `${sName} - Sunday`;
+
+            const isSatChecked = emp.availability && emp.availability[satKey] === 1 ? 'checked' : '';
+            const isSunChecked = emp.availability && emp.availability[sunKey] === 1 ? 'checked' : '';
+
+            shiftHtml += `
+                <label style="margin-right:15px; color: black;">
+                    <input type="checkbox" class="avail-check" 
+                           data-empid="${emp.id}" 
+                           data-shiftname="${satKey}" ${isSatChecked}>
+                    ${sName} - Saturday
+                </label>
+                <label style="margin-right:15px; color: black;">
+                    <input type="checkbox" class="avail-check" 
+                           data-empid="${emp.id}" 
+                           data-shiftname="${sunKey}" ${isSunChecked}>
+                    ${sName} - Sunday
+                </label>`;
+            }
         });
 
         container.innerHTML += `
-            <div class="emp-row" style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #ddd; color: black;">
+            <div class="emp-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd; color: black;">
                 <strong>ID: ${emp.id} - ${emp.name}</strong>
                 <div class="shift-grid">${shiftHtml}</div>
             </div>`;
@@ -569,48 +639,6 @@ async function submitVacation() {
 let currentDeleteEmpId = null;
 
 /*
-Fetches an employee's current vacations and displays them in a selectable list for removal.
-*/
-async function remove_vacation() {
-    const empId = document.getElementById('emp_id_vac').value;
-    if (!empId) return alert("Please enter an Employee ID");
-
-    const loggedInUserId = localStorage.getItem('userID');
-    if (!loggedInUserId) return;
-
-    const response = await fetch(`/get_employees/${loggedInUserId}`);
-    const employees = await response.json();
-    
-    const emp = employees.find(e => String(e.id) === String(empId));
-    
-    if (!emp || !emp.vacation || emp.vacation.length === 0) {
-        alert("No vacations found for this employee.");
-        return;
-    }
-
-    currentDeleteEmpId = empId;
-    const container = document.getElementById('vacationContainer');
-    
-    let listHtml = '<div style="text-align: left; color: black; padding: 10px;">';
-    
-    emp.vacation.forEach((vac, index) => {
-        let start = vac[0];
-        let end = vac[1];
-        let display = (start === end) ? start : start + " to " + end;
-
-        listHtml += '<div style="margin-bottom: 12px;">';
-        listHtml += '  <input type="radio" name="vacSelect" id="v' + index + '" value="' + index + '">';
-        listHtml += '  <label for="v' + index + '" style="margin-left: 10px; cursor: pointer;">' + display + '</label>';
-        listHtml += '</div>';
-    });
-    
-    listHtml += '</div>';
-
-    container.innerHTML = listHtml;
-    document.getElementById('delVacationPopup').style.display = 'flex';
-}
-
-/*
 Removes a specifically selected vacation entry from the employee's history.
 */
 async function deleteVacation() {
@@ -643,6 +671,95 @@ async function deleteVacation() {
         alert(result.message || "Deletion error.");
     }
 }
+
+/*
+Allows user to set employees to have recurring days off (Ex. Every Friday)
+*/
+async function RecurringDaysOffPopup() {
+    const loggedInUserId = localStorage.getItem('userID') || getCookie('userID');
+    if (!loggedInUserId) {
+        alert("Please log in first.");
+        return;
+    }
+
+    const response = await fetch(`/view_emps/${loggedInUserId}`);
+    const result = await response.json();
+
+    if (result.status !== "success" || !result.employees) {
+        alert("Failed to load employee data.");
+        return;
+    }
+
+    const employees = result.employees;
+    const container = document.getElementById('daysOffContainer');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    employees.forEach(emp => {
+        const activeDaysOff = emp.recurring_days_off || [];
+
+        let checkboxesHtml = daysOfWeek.map(day => {
+            const isChecked = activeDaysOff.includes(day) ? 'checked' : '';
+            return `
+                <label style="margin-right: 10px; font-size: 0.9rem; color: #333;">
+                    <input type="checkbox" class="day-off-check" data-empid="${emp.id}" value="${day}" ${isChecked}>
+                    ${day.slice(0, 3)}
+                </label>`;
+        }).join('');
+
+        container.innerHTML += `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd;">
+                <strong>ID: ${emp.id} - ${emp.name}</strong>
+                <div>${checkboxesHtml}</div>
+            </div>`;
+    });
+
+    document.getElementById('daysOffPopup').style.display = 'block';
+}
+
+function closeDaysOffPopup() {
+    const popup = document.getElementById('daysOffPopup');
+    if (popup) popup.style.display = 'none';
+}
+
+/*
+Saves recurring days off for each employee and posts the payload to the server.
+*/
+async function saveRecurringDaysOff() {
+    const checkboxes = document.querySelectorAll('#daysOffContainer .day-off-check');
+    const updates = {};
+
+    checkboxes.forEach(cb => {
+        const empId = cb.getAttribute('data-empid');
+        if (!updates[empId]) {
+            updates[empId] = [];
+        }
+        if (cb.checked) {
+            updates[empId].push(cb.value);
+        }
+    });
+
+    const response = await fetch('/update_recurring_days_off', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            owner_id: parseInt(getCookie('userID') || localStorage.getItem('userID')),
+            days_off: updates
+        })
+    });
+
+    const result = await response.json();
+    if (result.status === "success") {
+        closeDaysOffPopup();
+        alert("Weekly days off updated successfully!");
+        location.reload();
+    } else {
+        alert(result.message || "Failed to update recurring days off.");
+    }
+}
+
 
 /*
 Authenticates a user by sending their username and password to the server for verification.

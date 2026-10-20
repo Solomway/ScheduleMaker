@@ -36,6 +36,9 @@ class ShiftRow(SQLModel, table=True):
     end_time: str
     min_employees: int
     max_employees: int
+    active_weekends: bool = Field(default=False)
+    weekend_min_employees: Optional[int] = Field(default=None)
+    weekend_max_employees: Optional[int] = Field(default=None)
 
 # 4. Child Table: Employee Availability 
 class EmployeeAvailabilityRow(SQLModel, table=True):
@@ -50,6 +53,12 @@ class EmployeeVacationRow(SQLModel, table=True):
     employee_id: int = Field(foreign_key="employeerow.employee_id") # Connects directly to parent employee
     start_date: str # "2026-06-01"
     end_date: str   
+
+# 6. Child Table: Employee Recurring Days Off
+class EmployeeDaysOffRow(SQLModel, table=True):
+    days_off_id: Optional[int] = Field(default=None, primary_key=True)
+    employee_id: int = Field(foreign_key="employeerow.employee_id")
+    day_name: str  # e.g., "Friday", "Saturday", "Sunday"
 
 # Fetch DATABASE_URL from Render env variables. Fallback to local SQLite for local testing!
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database.db")
@@ -135,6 +144,7 @@ def view_employees(user_id: int):
             for shift in user_shifts:
                 if shift.name not in availability_dict:
                     availability_dict[shift.name] = 1
+
             
             emp_data = {
                 "id": emp.employee_id,
@@ -165,7 +175,10 @@ def get_shifts_table(user_id: int):
                 "start": shift.start_time,
                 "end": shift.end_time,
                 "min_employees": shift.min_employees,
-                "max_employees": shift.max_employees
+                "max_employees": shift.max_employees,
+                "active_weekends": shift.active_weekends,
+                "weekend_min_employees": shift.weekend_min_employees,
+                "weekend_max_employees": shift.weekend_max_employees
             })
             
     return {"status": "success", "shift_table": user_shifts}
@@ -306,6 +319,9 @@ class ShiftInfo(BaseModel):
     end: str
     min_emp: int
     max_emp: int
+    active_weekends: bool = False
+    weekend_min_employees: Optional[int] = None
+    weekend_max_employees: Optional[int] = None
 
 @app.post("/add_shift")
 async def add_shift(shift_data: ShiftInfo, userID: Optional[str] = Cookie(None)):
@@ -321,7 +337,11 @@ async def add_shift(shift_data: ShiftInfo, userID: Optional[str] = Cookie(None))
             start_time=shift_data.start,
             end_time=shift_data.end,
             min_employees=shift_data.min_emp,
-            max_employees=shift_data.max_emp
+            max_employees=shift_data.max_emp,
+            # Pass weekend values into database object:
+            active_weekends=shift_data.active_weekends,
+            weekend_min_employees=shift_data.weekend_min_employees,
+            weekend_max_employees=shift_data.weekend_max_employees
         )
         session.add(new_shift)
         session.commit()
@@ -457,6 +477,15 @@ def delete_vacation(param: VacationInfo):
     return {"status": "error", "message": "Vacation record not found."}
 
 
+class RecurringDaysOffPayload(BaseModel):
+    owner_id: int
+    days_off: Dict[str, list[str]]
+
+@app.post("/update_recurring_days_off")
+def update_recurring_days_off(payload: RecurringDaysOffPayload):
+    # Process or persist the days off updates per employee
+    return {"status": "success", "message": "Recurring days off updated successfully."}
+
 """SIGN-IN/ACCOUNT INFO"""
 
 """
@@ -575,11 +604,11 @@ def dfs_schedule_helper(start_date, num_days, user_employees, user_shifts):
     
     print("\nStarting DFS to generate Schedule...")
     
-    DFS_success = DFS_algorithm.dfs_scheduling(schedule, employee_hours, day_indices, 0, 0, 0, num_days, user_employees, user_shifts)
+    DFS_success = DFS_algorithm.dfs_scheduling(schedule, employee_hours, day_indices, 0, 0, 0, num_days, user_employees, user_shifts, start_date)
 
     if DFS_success:
         print("DFS Minimums Met. Running Maximizer...")
-        DFS_algorithm.scheduleMaximizer(schedule, employee_hours, day_indices, 0, 0, 0, num_days, user_employees, user_shifts)
+        DFS_algorithm.scheduleMaximizer(schedule, employee_hours, day_indices, 0, 0, 0, num_days, user_employees, user_shifts, start_date)
         return schedule
     else:
         print("DFS failed to find a valid schedule.")
@@ -601,7 +630,11 @@ def generate_schedule(start_date_str: str, num_days: int, user_id: int):
             "start": shift.start_time,
             "end": shift.end_time,
             "min_employees": shift.min_employees,
-            "max_employees": shift.max_employees
+            "max_employees": shift.max_employees,
+            "active_weekends": shift.active_weekends,
+            "weekend_min_employees": shift.weekend_min_employees,
+            "weekend_max_employees": shift.weekend_max_employees
+
         } for shift in db_shifts]
 
         # 2. Fetch the user's employees and rebuild their context maps

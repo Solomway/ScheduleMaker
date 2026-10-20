@@ -20,14 +20,28 @@
                 <h3>
                     Generate Schedule
                 </h3>
+            
                 <input type="date" id="startDate" placeholder="Start Date" size=10000px>
                 <input type="number" id="num_days" placeholder="Number Of Days">
                 <button onclick="generateSchedule()">Generate Schedule</button>
+                <br>
+                <div class="schedule-options" style="margin: 15px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; max-width: 350px;">
+                    <h4 style="margin-top: 0;">Options</h4>
+                    <label style="display: block; margin-bottom: 8px;">
+                        <input type="checkbox" id="opt_stat_holidays" checked> Work Stat Holidays
+                    </label>
+                    <label style="display: block; margin-bottom: 8px;">
+                        <input type="checkbox" id="opt_consecutive_off" checked> Attempt Consecutive Days Off
+                    </label>
+                    <label style="display: block;">
+                        <input type="checkbox" id="opt_equalize_hours"> Equalize Total Hours
+                    </label>
+                </div>
             </div>
             <div id="scheduleOutput"> </div>
             <br>
             <hr>
-
+            
             <div>
                 <h3>
                     Employees Table

@@ -35,20 +35,6 @@
                         <input type="submit" value="Submit">
                     </form>
                 </div>
-
-                <div class="auth-box">
-                    <h3>Remove Employees</h3>
-                    <form>
-                        <div>
-                            <label for="emp_id">Employee ID:</label><br>
-                            <input type="number" id="emp_id" name="emp_id" placeholder="Employee ID">
-                        </div>
-                        <input type="button" value="Submit" onclick="remove_emp()">
-                    </form>
-                </div>
-            </div>
-
-            <div class="auth-row">
                 <div class="auth-box">
                     <h3>Add Vacation / Day Off</h3>
                     <form id="vacationForm">
@@ -66,7 +52,36 @@
                         </div>
                         <input type="button" value="Submit Vacation" onclick="submitVacation()">
                     </form>
+                    <br><br>
+                    <button onclick="RecurringDaysOffPopup()">Weekly Days Off</button>
                 </div>
+            </div>
+
+            <!-- Weekly Days Off Modal -->
+            <div id="daysOffPopup" class="overlay">
+                <div class="availability-box">
+                    <h2>Recurring Weekly Days Off</h2>
+                    <p>Select the days of the week each employee is permanently unavailable to work.</p>
+                    <hr>
+                    <div id="daysOffContainer"></div>
+                    <br>
+                    <button onclick="saveRecurringDaysOff()" style="background: #28a745; color: white; padding: 10px;">Save & Close</button>
+                    <button onclick="closeDaysOffPopup()" style="background: #6c757d; color: white; padding: 10px;">Cancel</button>
+                </div>
+            </div>
+
+            <div class="auth-row">
+                <div class="auth-box">
+                    <h3>Remove Employees</h3>
+                    <form>
+                        <div>
+                            <label for="emp_id">Employee ID:</label><br>
+                            <input type="number" id="emp_id" name="emp_id" placeholder="Employee ID">
+                        </div>
+                        <input type="button" value="Submit" onclick="remove_emp()">
+                    </form>
+                </div>
+
                 <div class="auth-box">
                     <h3>Remove Vacation / Day Off</h3>
                     <form>

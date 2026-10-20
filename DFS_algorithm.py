@@ -4,7 +4,7 @@ import alg_helper
 """
 Uses a Depth-First Search approach to find a valid schedule that meets all minimum staffing requirements.
 """
-def dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index, slot_index, num_days,employees_list, shifts_list):
+def dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index, slot_index, num_days,employees_list, shifts_list, start_date):
     # A valid schedule is found
     if day_index == num_days:
         return True 
@@ -34,7 +34,7 @@ def dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index
                 for emp_id, data in employee_hours.items()
             }
 
-        return dfs_scheduling(schedule, next_employee_hours, day_indices, next_day_num, 0, 0, num_days,employees_list, shifts_list)
+        return dfs_scheduling(schedule, next_employee_hours, day_indices, next_day_num, 0, 0, num_days,employees_list, shifts_list,start_date)
 
 
     # Move to the next shift or next day
@@ -51,22 +51,37 @@ def dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index
                 for emp_id, data in employee_hours.items()
             }
 
-        return dfs_scheduling(schedule, next_employee_hours, day_indices, next_day_index, 0, 0, num_days, employees_list, shifts_list)
+        return dfs_scheduling(schedule, next_employee_hours, day_indices, next_day_index, 0, 0, num_days, employees_list, shifts_list,start_date)
 
     current_shift = shifts_list[shift_index]
     shift_name = current_shift['shift_name']
-    min_employees = current_shift.get('min_employees', 0)
+
+    current_date = start_date + timedelta(days=day_index)
+    is_weekend = current_date.weekday() in (5, 6)
+
+    if is_weekend and current_shift.get('active_weekends') and current_shift.get('weekend_min_employees') is not None:
+        effective_min = current_shift['weekend_min_employees']
+    else:
+        effective_min = current_shift.get('min_employees', 0)
 
 
     # Move to the next shift if all mandatory slots for the current shift are filled
-    if slot_index >= min_employees:
-        return dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index + 1, 0, num_days, employees_list, shifts_list)
+    if slot_index >= effective_min:
+        return dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index + 1, 0, num_days, employees_list, shifts_list, start_date)
     
-
     shift_duration = alg_helper.get_shift_duration(current_shift)
 
+    sorted_employees = sorted(
+        employees_list,
+        key=lambda emp: (
+            alg_helper.get_eligibility_score(emp, day_indices, day_index, num_days, shifts_list),
+            not alg_helper.worked_previous_day(emp['name'], current_date_str, day_indices, schedule),
+            employee_hours[emp['id']]['current_hours'],
+        )
+    )
+
     # Iterate through all employees to find a valid assignment
-    for employee in employees_list:
+    for employee in sorted_employees:
         emp_id = employee['id']
         emp_name = employee['name']
         
@@ -100,7 +115,7 @@ def dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index
         employee_hours[emp_id]['current_hours'] += shift_duration
         
         # Recursive Call 
-        if dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index, slot_index + 1, num_days,employees_list, shifts_list):
+        if dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index, slot_index + 1, num_days,employees_list, shifts_list,start_date):
             return True # Solution found down this path
 
         # Dead end 
@@ -113,7 +128,7 @@ def dfs_scheduling(schedule, employee_hours, day_indices, day_index, shift_index
 """
 Iterates through a valid schedule to assign extra staff where possible without exceeding maximum hour limits.
 """
-def scheduleMaximizer(schedule, employee_hours, day_indices, day_index, shift_index, slot_index, num_days, employees_list, shifts_list):
+def scheduleMaximizer(schedule, employee_hours, day_indices, day_index, shift_index, slot_index, num_days, employees_list, shifts_list, start_date):
     shifts_map = {shift['shift_name']: shift for shift in shifts_list}
 
     # Process week by week (every 7 days)
@@ -135,23 +150,33 @@ def scheduleMaximizer(schedule, employee_hours, day_indices, day_index, shift_in
         while added_in_this_lap:
             added_in_this_lap = False
 
-            for day in week_days:
+            for day_offset, day in enumerate(week_days):
+                current_day_index = week_start + day_offset
+                current_date = start_date + timedelta(days=current_day_index)
+                is_weekend = current_date.weekday() in (5, 6)
+
                 is_holiday = False
-                
                 for holiday_entry in alg_helper.holidays:
                     if holiday_entry[0] == day:
                         is_holiday = True
                         break  
 
                 if is_holiday:
+                    # Add custom stat holiday logic
                     continue
 
                 for shift_name, assigned_emps in schedule[day].items():
                     shift_info = shifts_map[shift_name]
-                    max_employees = shift_info.get('max_employees', 0)
+                    
+                    # Effective max limit check
+                    if is_weekend and shift_info.get('active_weekends') and shift_info.get('weekend_max_employees') is not None:
+                        effective_max = shift_info['weekend_max_employees']
+                    else:
+                        effective_max = shift_info.get('max_employees', 0)
+
                     shift_duration = alg_helper.get_shift_duration(shift_info)
 
-                    if len(assigned_emps) < max_employees:
+                    if len(assigned_emps) < effective_max:
                         eligible_emps = []
                         for employee in employees_list:
                             # 1. Check if already in this shift or working today
